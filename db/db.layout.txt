@@ -1,0 +1,18 @@
+Normalize data setup
+
+Table: dataset
+file_id     file           transaction_date
+----------  -------------  -------------------
+11          mongerss.xlsx  2019-06-19 19:33:26
+
+Table: datasheet
+sheet_id    file_id     sheet_indx  sheet_name
+----------  ----------  ----------  ----------
+22          11          1           Sheet 1
+
+Table: data
+data_id     file_id     sheet_id    row_indx    name        age         utf
+----------  ----------  ----------  ----------  ----------  ----------  ----------
+31          11          22          2           jt’s name   37          føø bār
+32          11          22          3           sk          37          鸡
+33          11          22          4           pete’s nam  44          日本国
