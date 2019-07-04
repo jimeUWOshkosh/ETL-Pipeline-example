@@ -1,0 +1,220 @@
+%title: ETL::Pipeline
+%author: James Edwards
+%date: 2019-19-June
+
+-> Extract, Transform and Load: Slide 1 <-
+=========
+
+ETL::Pipeline POD
+
+By dividing a conversion into 3 steps, we isolate the input from the
+output...
+
+   *   Centralizes data formatting and validation.
+
+   *   Makes new input formats a breeze.
+
+   *   Makes new outputs just as easy.
+
+Automatically removes leading and trailing whitespace.
+
+-------------------------------------------------
+
+-> # ETL:P : Slide 2 <-
+
+You can *map* your input
+
+CSV
+   mapping => { name => '0', age => '1', utf => '2' },
+XLS
+   mapping => { name => 'A', age => 'B', utf => 'C' },
+
+You can set constants for output fields that are not provided by the input file.
+   constants => {Client => 1, Type => 'Complaint'}
+   ex.
+      constants => { sales_id => 42 }  # Sales ID for JT Smith
+
+-------------------------------------------------
+
+-> # ETL:P : Slide 3 <-
+
+You can set up a *filter* code reference to be executed on
+every attribute.
+
+You can set up a *skip_if* code reference to be executed on
+the record to see if you have bad data.
+
+You can set up a *stop_if* code reference which will return
+TRUE if processing needs to be stopped.
+
+You can set up a *debug* code reference which will allow you
+to print out any portion of the input row.
+
+-------------------------------------------------
+
+-> # ETL:P::Input : CSV example : Slide 4 <-
+
+   sub pipelineCSV ( $in_fn, $dbh ) {
+   
+       my $etl = ETL::Pipeline->new(
+           {
+               work_in => 'tmp',
+               input   => [ 'DelimitedTextUnicode', matching => $in_fn ],
+               mapping => { name => '0', age => '1', utf => '2' },
+               output  => [ '+Local::EEcommon001', dbh => $dbh ]
+           } )->process;
+       }
+
+-------------------------------------------------
+
+-> # ETL:P::Input : Excel XLS example : Slide 5 <-
+
+    sub pipelineXLS ( $in_fn, $dbh ) {
+
+        my $etl = ETL::Pipeline->new(
+            {
+                work_in => 'tmp',
+                input   => [ 'Excel', matching => $in_fn ],
+                mapping => { name => 'A', age => 'B', utf => 'C' },
+                output  => [ '+Local::EEcommon001', dbh => $dbh ]
+            }
+          )->process;
+    }
+
+-------------------------------------------------
+
+-> # ETL:P::Input : Excel XLSX example : Slide 6 <-
+
+    sub pipelineXLS ( $in_fn, $dbh ) {
+
+        my $etl = ETL::Pipeline->new(
+            {
+                work_in => 'tmp',
+                input   => [ 'Excel', matching => $in_fn ],
+                mapping => { name => 'A', age => 'B', utf => 'C' },
+                output  => [ '+Local::EExlsx001', dbh => $dbh ]
+            }
+          )->process;
+    }
+
+-------------------------------------------------
+
+-> # ETL:P::Input : Roll your own I/O Module : Slide 7 <-
+
+ETL:P POD
+    Technical Note: Want to use a custom class from Local instead of
+    ETL::Pipeline::Input::{MODULE},
+    ETL::Pipeline::Output::{MODULE},
+                                     Put a + (plus sign) in front of the class name.
+
+   For example, this command uses the input class Local::CustomExtract.
+      $pipeline->input( '+Local::CustomExtract' );
+   For example, this command uses the output class Local::CustomLoad.
+      $pipeline->output( '+Local::CustomLoad' );
+
+-------------------------------------------------
+
+-> # ETL:P::Input : Roll your own Input Module : Slide 8 <-
+
+Out of the box, ETL::Pipeline provides input sources for Microsoft Excel,
+CSV, and XML files. To add your own formats...
+
+1. Create a Perl module. Name it "Local::...".
+2. Make it a Moose object: "use Moose;".
+3. Include the role: "with 'ETL::Pipeline::Input';".
+4. Add the "next_record" method: "sub next_record { ... }".
+5. Add the "configure" method: "sub configure { ... }".
+6. Add the "finish" method: "sub finish { ... }".
+
+-------------------------------------------------
+
+-> # ETL:P::Output : Roll your own Output Module : Slide 9 <-
+
+Adding a new output destination
+    While ETL::Pipeline provides a couple generic output destinations, the
+    real value of ETL::Pipeline comes from adding your own, business
+    specific, destinations...
+
+1. Create a Perl module. Name it "Local::...".
+2. Make it a Moose object: "use Moose;".
+3. Include the role: "with 'ETL::Pipeline::Output';".
+4. Add the "write_record" method: "sub write_record { ... }".
+5. Add the "set" method: "sub set { ... }".
+6. Add the "new_record" method: "sub new_record { ... }".
+7. Add the "configure" method: "sub configure { ... }".
+8. Add the "finish" method: "sub finish { ... }".
+
+-------------------------------------------------
+
+-> # ETL:P::Output : One of My Output Module : Slide 10 <-
+
+package Local::EEcommon001;
+use utf8::all;
+use lib 'lib';
+use Moose;
+use namespace::autoclean;
+with 'ETL::Pipeline::Output::Storage::Hash';
+with 'ETL::Pipeline::Output';
+use Up::Schema;
+use MooseX::Types::LoadableClass;
+our ( $dbh, $file_id, $sheet_id );
+has 'dbh' => ( is  => 'ro', isa => 'Object', );
+
+-------------------------------------------------
+
+-> # ETL:P::Output : One of My Output Module : Continued : Slide 11 <-
+
+sub finish { }
+sub default_fields { () }
+sub new_record { }
+sub configure ($self) {     # Inserts my header into the database  }
+
+sub write_record ($self) {
+ # Note: Record 1 is assumed to have column labels on it so you won't see it here.
+
+ # Inserts my sub header if record count equals 2
+ # This would be for each workbook in a spreadsheet
+
+ # Inserts a detail for each row process
+
+}
+__PACKAGE__->meta->make_immutable;
+1;
+
+-------------------------------------------------
+
+-> # ETL:P : My Sample Data : Slide 12 <-
+
+Table: dataset
+file_id     file           transaction_date   
+----------  -------------  -------------------
+11          mongerss.xlsx  2019-06-19 19:33:26
+
+Table: datasheet
+sheet_id    file_id     sheet_indx  sheet_name
+----------  ----------  ----------  ----------
+22          11          1           Sheet 1   
+
+Table: data
+data_id     file_id     sheet_id    row_indx    name        age         utf       
+----------  ----------  ----------  ----------  ----------  ----------  ----------
+31          11          22          2           jt’s name   37          føø bār   
+32          11          22          3           sk          37          鸡         
+33          11          22          4           pete’s nam  44          日本国       
+
+-------------------------------------------------
+
+-> # ETL:P : How to Run : Slide 13 <-
+
+Start from scratch
+$ rm db/up.db
+$ sqlite3 db/up.db < db/create.sql
+
+You must place the input files in the project's home directory!!!
+The *modulino* Etlpipeline.pm makes a copy of that file to 'tmp' sub-directory to process.
+$ perl Etlpipeline.pm -f aaaa.csv
+$ perl Etlpipeline.pm -f mongers.xls
+$ perl Etlpipeline.pm -f mongerss.xlsx
+
+$ sqlite3 db/up.db < db/display.sql
+
