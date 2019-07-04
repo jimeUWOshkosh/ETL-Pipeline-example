@@ -5,6 +5,15 @@ All input files you wish to play with
    aaaa.csv, mongers.xls, and mongerss.xlsx
 need to be in the home directory.
 
+Yes, the employee records layout is very weak!
+name, age, utf
+but this an opportunity learn ETL::Pipeline
+
+These are my ETL::Pipeline modules in lib/Local
+   DelimitedTextUnicode.pm
+   EEcommon001.pm
+   EExlsx001.pm
+
 Clean up db
 $ rm db/up.db
 

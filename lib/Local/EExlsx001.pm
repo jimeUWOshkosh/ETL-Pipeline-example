@@ -113,11 +113,7 @@ This module takes a file (XLSX) of pseudo employee records and insert
 a header, sub header and employee record(s) into the database.
 
 Yes, in theory the type of record (employee, billing info, ...) would be 
-inserted into production table of the same type, but here I only need to
-be able to inserted the data so the web app option can display what was 
-Transform & Loaded by the ETL process. I don't have the data for
-Ovid's company for the employment quiz for programmers.
-It could be multiple types of records from multiple clients!
+inserted into production table of the same type.
 
 In the Transform process you will be able to insert the code to handle
 attributes that need be straighten out, munged, before being insert into 
