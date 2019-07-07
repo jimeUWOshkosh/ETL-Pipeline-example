@@ -9,6 +9,9 @@ Yes, the employee records layout is very weak!
 name, age, utf
 but this an opportunity learn to ETL::Pipeline
 
+A MDP presentation, 'ETL-P.mdp'
+$ mdp ETL-P.mdp
+
 These are my ETL::Pipeline modules in lib/Local
    DelimitedTextUnicode.pm
    EEcommon001.pm
