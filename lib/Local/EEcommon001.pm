@@ -13,26 +13,28 @@ no warnings qw(experimental::signatures);    ## no critic
 use Up::Schema;
 use MyConfig 'GetDSNinfo';
 use MooseX::Types::LoadableClass;
+use Ouch;
 use Data::Dumper;
+use Try::Tiny;
+use DBIx::Class::Storage::TxnScopeGuard;
+use DBrec;
 
 our $VERSION = '1.00';
 
-our ( $dbh, $file_id, $sheet_id );
+our ( $dbh, $fn, $file_id, $sheet_id );
 
-has 'dbh' => (
-    is       => 'ro',
-    isa      => 'Object',
+has 'dbinfo' => (
+    is       => 'rw',
+    isa      => 'DBrec',
     required => 1,
 );
 
 sub configure ($self) {
 
-    #   my ($dsn,$u,$p,$extra) = GetDSNinfo('up.conf');
-    #   $dbh  = Up::Schema->connect($dsn,$u,$p,$extra);
-    $dbh = $self->dbh;
-    my $fn           = $self->pipeline->input->file->{file};
-    my $n_dataset_rs = $dbh->resultset('Dataset')->create( {file => $fn,} );
-    $file_id = $n_dataset_rs->file_id;
+    my $tmp = $self->dbinfo;
+    $dbh = $tmp->dt;
+    $fn = $self->pipeline->input->file->{file};
+
     return;
 }
 
@@ -50,27 +52,39 @@ sub write_record ($self) {
     my $ra_rec  = $self->pipeline->output->current;
     my $rec_num = $self->pipeline->input->record_number;
 
-    # sheet_id   INTEGER PRIMARY KEY AUTOINCREMENT,
-    if ( $rec_num == 2 ) {
-        my $datasheet_rs = $dbh->resultset('Datasheet')->create(
+    try {
+        if ( $rec_num == 2 ) {
+            my $n_dataset_rs = $dbh->resultset('Dataset')->create( {file => $fn,} );
+            $file_id = $n_dataset_rs->file_id;
+            my $datasheet_rs = $dbh->resultset('Datasheet')->create(
+                {
+                    file_id    => $file_id,
+                    sheet_indx => 1,
+                    sheet_name => 'Sheet 1',
+                }
+            );
+            $sheet_id = $datasheet_rs->sheet_id;
+        }
+        my $data_rs = $dbh->resultset('Data')->create(
             {
-                file_id    => $file_id,
-                sheet_indx => 1,
-                sheet_name => 'Sheet 1',
+                file_id  => $file_id,
+                sheet_id => $sheet_id,
+                row_indx => $rec_num,
+                name     => $ra_rec->{name},
+                age      => $ra_rec->{age},
+                utf      => $ra_rec->{utf},
             }
         );
-        $sheet_id = $datasheet_rs->sheet_id;
-    }
-    my $data_rs = $dbh->resultset('Data')->create(
-        {
-            file_id  => $file_id,
-            sheet_id => $sheet_id,
-            row_indx => $rec_num,
-            name     => $ra_rec->{name},
-            age      => $ra_rec->{age},
-            utf      => $ra_rec->{utf},
-        }
-    );
+    } catch {
+#        my $tmp = $self->dbinfo;
+	my ($str) = $_ =~ m/constraint failed: (.*) \[/;
+	if ($str) {
+	    $self->dbinfo->mesg( "Missing record field(s): $str" );
+        } else {
+	    $self->dbinfo->mesg( "Other DB error: $_" );
+	}
+	ouch "SQL Error", "Missing record field(s): $str";
+    };
     return 1;
 }
 
@@ -122,7 +136,11 @@ This module takes a file (CSV,XLS) of pseudo employee records and insert
 a header, sub header and employee record(s) into the database.
 
 Yes, in theory the type of record (employee, billing info, ...) would be 
-inserted into production table of the same type.
+inserted into production table of the same type, but here I only need to
+be able to inserted the data so the web app option can display what was 
+Transform & Loaded by the ETL process. I don't have the data for
+Ovid's company for the employment quiz for programmers.
+It could be multiple types of records from multiple clients!
 
 In the Transform process you will be able to insert the code to handle
 attributes that need be straighten out, munged, before being insert into 

@@ -7,7 +7,7 @@ need to be in the home directory.
 
 Yes, the employee records layout is very weak!
 name, age, utf
-but this an opportunity learn ETL::Pipeline
+but this an opportunity learn to ETL::Pipeline
 
 These are my ETL::Pipeline modules in lib/Local
    DelimitedTextUnicode.pm
@@ -28,6 +28,6 @@ $ perl Etlpipeline.pm -f aaaa.csv
 Display db
 $ sqlite3 db/up.db <display.sql
 
-If you're wonder what the db layout is
+If you're wondering what the db layout is
 $ more db/db.layout.txt
 

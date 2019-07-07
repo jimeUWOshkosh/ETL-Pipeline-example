@@ -1,6 +1,6 @@
 package Etlpipeline;
 #
-#   A modulino that reads in a CSV,XLS,XLSX file and insert data into the RDBMS
+#   A modulino that reads in a CSV file and insert data into the RDBMS
 #
 use strict;
 use warnings;
@@ -14,13 +14,15 @@ our $VERSION = '1.00';
 
 use Ouch;
 use lib 'lib';
-
-#use DBIx::Class::Storage::TxnScopeGuard;
+use DBIx::Class::Storage::TxnScopeGuard;
 use Getopt::Long qw(GetOptions);
 use File::Basename;
+use Data::Dumper;
 use Up::Schema;
 use MyConfig 'GetDSNinfo';
 use ETL::Pipeline;
+use DBrec;
+use Try::Tiny;
 
 our ( $print_rc, );
 # is the file called as a program or a module subroutine???
@@ -59,8 +61,13 @@ EOM
     my $dbh = Up::Schema->connect( $dsn, $u, $p, $extra )
         or croak 'failed to connect to SQLite3 database. ', Up::Schema::errstr();
 
-    mymain( $filename, $dbh );
-    croak($EVAL_ERROR) if ($EVAL_ERROR);
+    my $dbrec = DBrec->new( dt => $dbh, mesg => 'dummy');
+    eval {
+       mymain( $filename, $dbrec);
+       1;
+    } or do {
+        die $@;
+    };
     exit 0;
 }
 
@@ -69,93 +76,107 @@ sub perform ( $file, $dbh ) {
 
     #   say 'perform';
     #   my ($file ) = @_;
-    mymain( $file, $dbh );
+    my $dbrec = DBrec->new( dt => $dbh, mesg => 'dummy');
+    eval {
+        mymain( $file, $dbrec );
+	1;
+    } or do {
+        die $@;
+    };
     return 1;
 }
 
-sub mymain ( $name, $dbh ) {
+sub mymain ( $name, $dbrec ) {
 
     #   say 'mymain';
 
     # the file is sitting in the ./upload, put in ./tmp to process
     my $suffix   = lc $+{suffix} if ( $name =~ m/\A\w.*\.(?<suffix>\w.*)\Z/ );    ## no critic
-    my $filename = $name;
+    my $filename =  $name;
 
 #    my $tmp_fn;
     # copy file to tmp
     my $tmp_fn = './tmp/' . $name;
     `cp $filename $tmp_fn`;
+    my ($guard);
     eval {
+	my $tmp = $dbrec->dt;
+	$guard = $tmp->txn_scope_guard;    # BEGIN_TRANSACTION();
+#	$guard = $r_dbrec->dt->txn_scope_guard;    # BEGIN_TRANSACTION();
         if ( $suffix eq 'csv' ) {
-
-#            $tmp_fn = './tmp/' . $name;
-#            `cp $filename $tmp_fn`;
-            pipelineCSV( $name, $dbh );
+            pipelineCSV( $name, $dbrec );
             `rm $tmp_fn`;
-
         }
         elsif ( $suffix eq 'xls' ) {
-
-#            $tmp_fn = './tmp/' . $name;
-#            `cp $filename $tmp_fn`;
-            pipelineXLS( $name, $dbh );
+            pipelineXLS( $name, $dbrec );
             `rm $tmp_fn`;
-
         }
         elsif ( $suffix eq 'xlsx' ) {
-
-#            $tmp_fn = './tmp/' . $name;
-#            `cp $filename $tmp_fn`;
-            pipelineXLSX( $name, $dbh );
+            pipelineXLSX( $name, $dbrec );
             `rm $tmp_fn`;
-
         }
         else {
             ouch 404, 'File extension NOT valid';
         }
+	1;
     } or do {
-        # let $EVAL_ERROR go back to caller
-        return if ($EVAL_ERROR);
+        die $@;
+    };
+    $guard->commit;    # END_TRANSACTION();
+    return;
+}
+
+sub pipelineXLSX ( $in_fn, $dbrec ) {
+    eval {
+        my $etl = ETL::Pipeline->new(
+            {
+                work_in => 'tmp',
+                input   => ['Excel', matching => $in_fn],
+                mapping => {name => 'A', age => 'B', utf => 'C'},
+                output  => ['+Local::EExlsx001', dbinfo => $dbrec ]
+            }
+        )->process;
+#	ouch("SQL Error", $dbrec->mesg) if ($dbrec->mesg ne "dummy");
+	1;
+    } or do {
+        die $@;
     };
     return;
 }
-sub pipelineXLSX ( $in_fn, $dbh ) {
 
-    my $etl = ETL::Pipeline->new(
-        {
-            work_in => 'tmp',
-            input   => ['Excel', matching => $in_fn],
-            mapping => {name => 'A', age => 'B', utf => 'C'},
-            output  => ['+Local::EExlsx001', dbh => $dbh]
-        }
-    )->process;
+sub pipelineXLS ( $in_fn, $dbrec ) {
+    eval {
+        my $etl = ETL::Pipeline->new(
+            {
+                work_in => 'tmp',
+                input   => ['Excel', matching => $in_fn],
+                mapping => {name => 'A', age => 'B', utf => 'C'},
+                output  => ['+Local::EEcommon001', dbinfo => $dbrec ]
+            }
+        )->process;
+#	ouch("SQL Error", $dbrec->mesg) if ($dbrec->mesg ne "dummy");
+	1;
+    } or do {
+        die $@;
+    };
     return;
 }
 
-sub pipelineXLS ( $in_fn, $dbh ) {
-
-    my $etl = ETL::Pipeline->new(
-        {
-            work_in => 'tmp',
-            input   => ['Excel', matching => $in_fn],
-            mapping => {name => 'A', age => 'B', utf => 'C'},
-#            output  => ['+Local::XLS::EE', dbh => $dbh]
-            output  => ['+Local::EEcommon001', dbh => $dbh]
-        }
-    )->process;
-    return;
-}
-
-sub pipelineCSV ( $in_fn, $dbh ) {
-
-    my $etl = ETL::Pipeline->new(
-        {
-            work_in => 'tmp',
-            input   => ['+Local::DelimitedTextUnicode', matching => $in_fn],
-            mapping => {name => '0', age => '1', utf => '2'},
-            output  => ['+Local::EEcommon001', dbh => $dbh]
-        }
-    )->process;
+sub pipelineCSV ( $in_fn, $dbrec ) {
+    eval {
+        my $etl = ETL::Pipeline->new(
+            {
+                work_in => 'tmp',
+                input   => ['+Local::DelimitedTextUnicode', matching => $in_fn],
+                mapping => {name => '0', age => '1', utf => '2'},
+                output  => ['+Local::EEcommon001', dbinfo => $dbrec ]
+            }
+        )->process;
+#	ouch("SQL Error", $dbrec->mesg) if ($dbrec->mesg ne "dummy");
+	1;
+    } or do {
+        die $@;
+    };
     return;
 }
 
@@ -211,6 +232,9 @@ The only subroutine that should be called is
 
 The configuration file for this Mojolicious application is 'up.conf' in
 the project's home directory.
+
+The file to be ETL needs to be placed in the {$PROJECT} 
+and will be copied to {$PROJECT}/tmp to be processed.
 
 =head1 DEPENDENCIES
 
