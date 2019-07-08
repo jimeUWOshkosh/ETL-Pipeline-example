@@ -80,10 +80,11 @@ sub write_record ($self) {
 	my ($str) = $_ =~ m/constraint failed: (.*) \[/;
 	if ($str) {
 	    $self->dbinfo->mesg( "Missing record field(s): $str" );
+	    ouch "SQL Error", "Missing record field(s): $str";
         } else {
 	    $self->dbinfo->mesg( "Other DB error: $_" );
+	    ouch "SQL Error", "Other DB error: $_";
 	}
-	ouch "SQL Error", "Missing record field(s): $str";
     };
     return 1;
 }
