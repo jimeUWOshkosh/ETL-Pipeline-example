@@ -69,7 +69,7 @@ to print out any portion of the input row.
 
 -> # ETL:P::Input : Excel XLS example : Slide 5 <-
 
-    sub pipelineXLS ( $in_fn, $dbh ) {
+   sub pipelineXLS ( $in_fn, $dbh ) {
 
         my $etl = ETL::Pipeline->new(
             {
@@ -85,7 +85,7 @@ to print out any portion of the input row.
 
 -> # ETL:P::Input : Excel XLSX example : Slide 6 <-
 
-    sub pipelineXLS ( $in_fn, $dbh ) {
+   sub pipelineXLS ( $in_fn, $dbh ) {
 
         my $etl = ETL::Pipeline->new(
             {
@@ -218,3 +218,9 @@ $ perl Etlpipeline.pm -f mongerss.xlsx
 
 $ sqlite3 db/up.db < db/display.sql
 
+-------------------------------------------------
+
+-> # ETL:P : Questions : Slide 14 <-
+
+
+Any Qs???
